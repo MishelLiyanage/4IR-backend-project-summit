@@ -68,6 +68,13 @@ class ValidationLimits:
     # File upload limits
     MAX_FILE_SIZE_MB = 10
     ALLOWED_FILE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf', '.txt']
+    
+    # Image processing limits
+    MAX_IMAGE_SIZE_MB = 5
+    MAX_BASE64_SIZE_MB = 7  # Base64 is ~33% larger than binary
+    ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png']
+    MIN_IMAGE_DIMENSION = 50  # Minimum width/height in pixels
+    MAX_IMAGE_DIMENSION = 4096  # Maximum width/height in pixels
 
 
 class Messages:
@@ -92,6 +99,15 @@ class Messages:
     FIELD_REQUIRED = "{field} is required"
     FIELD_TOO_SHORT = "{field} must be at least {min_length} characters"
     FIELD_TOO_LONG = "{field} cannot exceed {max_length} characters"
+    
+    # Image processing messages
+    IMAGE_REQUIRED = "Image data is required"
+    INVALID_BASE64 = "Invalid base64 image data"
+    IMAGE_TOO_LARGE = f"Image size cannot exceed {ValidationLimits.MAX_IMAGE_SIZE_MB}MB"
+    UNSUPPORTED_IMAGE_TYPE = "Unsupported image type. Allowed types: JPEG, PNG"
+    LLM_SERVICE_ERROR = "Failed to process image with LLM service"
+    LLM_SERVICE_TIMEOUT = "LLM service request timed out"
+    TEXT_EXTRACTION_FAILED = "Failed to extract text from image"
 
 
 class DefaultValues:
@@ -152,6 +168,14 @@ class AppConfig:
         # External services
         self.external_api_key = os.getenv('EXTERNAL_API_KEY')
         self.external_api_url = os.getenv('EXTERNAL_API_URL')
+        
+        # LLM Service configuration
+        self.llm_api_url = os.getenv('LLM_API_URL', 'https://sage.paastry.sysco.net/api/sysco-gen-ai-platform/agents/v1/content/generic/answer')
+        self.llm_ai_agent_id = os.getenv('LLM_AI_AGENT_ID', '68d434931b0ad4d414b4978e')
+        self.llm_user_agent = os.getenv('LLM_USER_AGENT', 'insomnium/1.3.0')
+        self.llm_request_timeout = int(os.getenv('LLM_REQUEST_TIMEOUT', '60'))  # 60 seconds for LLM processing
+        self.llm_max_retries = int(os.getenv('LLM_MAX_RETRIES', '3'))
+        self.llm_configuration_environment = os.getenv('LLM_CONFIGURATION_ENVIRONMENT', 'DEV')
     
     def is_development(self) -> bool:
         """Check if running in development mode."""
@@ -181,5 +205,19 @@ class AppConfig:
             'cache_url': '***' if self.is_production() else self.cache_url,
             'secret_key': '***',
             'log_level': self.log_level,
-            'api_prefix': self.api_prefix
+            'api_prefix': self.api_prefix,
+            'llm_api_url': self.llm_api_url,
+            'llm_ai_agent_id': self.llm_ai_agent_id,
+            'llm_configuration_environment': self.llm_configuration_environment
+        }
+    
+    def get_llm_config(self) -> Dict[str, Any]:
+        """Get LLM service configuration dictionary."""
+        return {
+            'api_url': self.llm_api_url,
+            'ai_agent_id': self.llm_ai_agent_id,
+            'user_agent': self.llm_user_agent,
+            'timeout': self.llm_request_timeout,
+            'max_retries': self.llm_max_retries,
+            'configuration_environment': self.llm_configuration_environment
         }

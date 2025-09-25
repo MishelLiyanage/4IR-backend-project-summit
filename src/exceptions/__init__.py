@@ -147,3 +147,82 @@ class ConfigurationError(BaseApplicationException):
         
         super().__init__(message, "CONFIGURATION_ERROR", details)
         self.parameter = parameter
+
+
+class ImageProcessingError(BaseApplicationException):
+    """Exception raised for image processing failures."""
+    
+    def __init__(self, message: str, image_type: Optional[str] = None, image_size: Optional[int] = None):
+        """Initialize image processing exception."""
+        details = {}
+        if image_type:
+            details["image_type"] = image_type
+        if image_size:
+            details["image_size_bytes"] = image_size
+        
+        super().__init__(message, "IMAGE_PROCESSING_ERROR", details)
+        self.image_type = image_type
+        self.image_size = image_size
+
+
+class Base64ValidationError(ValidationException):
+    """Exception raised for base64 validation failures."""
+    
+    def __init__(self, message: str = "Invalid base64 data"):
+        """Initialize base64 validation exception."""
+        super().__init__(message, "base64_data")
+
+
+class ImageSizeError(ImageProcessingError):
+    """Exception raised when image size exceeds limits."""
+    
+    def __init__(self, actual_size: int, max_size: int):
+        """Initialize image size exception."""
+        message = f"Image size {actual_size} bytes exceeds maximum allowed size {max_size} bytes"
+        super().__init__(message, image_size=actual_size)
+        self.actual_size = actual_size
+        self.max_size = max_size
+
+
+class UnsupportedImageTypeError(ImageProcessingError):
+    """Exception raised for unsupported image types."""
+    
+    def __init__(self, image_type: str, supported_types: list):
+        """Initialize unsupported image type exception."""
+        message = f"Unsupported image type: {image_type}. Supported types: {', '.join(supported_types)}"
+        super().__init__(message, image_type=image_type)
+        self.supported_types = supported_types
+
+
+class LLMServiceError(ExternalServiceError):
+    """Exception raised for LLM service failures."""
+    
+    def __init__(self, message: str, status_code: Optional[int] = None, response_data: Optional[Dict[str, Any]] = None):
+        """Initialize LLM service exception."""
+        super().__init__("LLM Service", message, status_code)
+        if response_data:
+            self.details.update({"response_data": response_data})
+        self.response_data = response_data
+
+
+class LLMServiceTimeoutError(LLMServiceError):
+    """Exception raised when LLM service request times out."""
+    
+    def __init__(self, timeout_seconds: int):
+        """Initialize LLM service timeout exception."""
+        message = f"LLM service request timed out after {timeout_seconds} seconds"
+        super().__init__(message)
+        self.timeout_seconds = timeout_seconds
+
+
+class TextExtractionError(BaseApplicationException):
+    """Exception raised when text extraction fails."""
+    
+    def __init__(self, message: str = "Failed to extract text from image", llm_response: Optional[Dict[str, Any]] = None):
+        """Initialize text extraction exception."""
+        details = {}
+        if llm_response:
+            details["llm_response"] = llm_response
+        
+        super().__init__(message, "TEXT_EXTRACTION_ERROR", details)
+        self.llm_response = llm_response

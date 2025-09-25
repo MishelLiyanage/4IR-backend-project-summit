@@ -14,7 +14,9 @@ from src.middlewares import (
 )
 from src.repositories.user_repository import UserRepository
 from src.services.user_service import UserService
+from src.services.llm_service import LLMService
 from src.controllers.user_controller import UserController
+from src.controllers.image_controller import ImageController
 from src.models.user import User
 from src.dto import UserCreateDTO, UserResponseDTO, PaginatedResponseDTO
 
@@ -47,9 +49,11 @@ class ApplicationContainer:
         
         # Services
         self._services['user'] = UserService(self._repositories['user'])
+        self._services['llm'] = LLMService(self.config)
         
         # Controllers
         self._controllers['user'] = UserController(self._services['user'])
+        self._controllers['image'] = ImageController(self._services['llm'])
         
         # Middleware chain
         self._middleware_chain = MiddlewareChain()
@@ -124,6 +128,9 @@ class Application:
         
         # Demonstrate the clean architecture
         await self._demonstrate_architecture()
+        
+        # Demonstrate image processing functionality
+        await self._demonstrate_image_processing()
         
         print("\nApplication ready for extension!")
         print("Add your business logic to services, controllers, and repositories.")
@@ -218,6 +225,41 @@ class Application:
             error_response = await middleware_chain.process_exception(e)
             if error_response:
                 print(f"   ❌ Error: {error_response['error']['message']}")
+    
+    async def _demonstrate_image_processing(self):
+        """Demonstrate the image processing functionality."""
+        image_controller = self.container.get_controller('image')
+        
+        try:
+            print("\n🖼️  Image Processing Demonstration")
+            print("-" * 40)
+            
+            # Health check
+            print("1. Checking image processing service health...")
+            health_response = await image_controller.health_check()
+            
+            if health_response['status'] == 'success':
+                print("   ✅ Image processing service is healthy")
+                llm_status = health_response['data']['llm_service']['status']
+                print(f"   ✅ LLM service status: {llm_status}")
+            else:
+                print("   ❌ Image processing service health check failed")
+            
+            print("\n📝 Image Processing Features:")
+            print("   • Base64 image upload and validation")
+            print("   • Image size and format validation")
+            print("   • Integration with Sysco Gen AI Platform")
+            print("   • Text extraction from images")
+            print("   • Comprehensive error handling")
+            print("   • Request timeout and retry logic")
+            
+            print("\n🚀 Ready to process images from frontend!")
+            print("   Endpoint: POST /images/extract-text")
+            print("   Payload: { 'encoded_image': '<base64_data>', 'media_type': 'image/jpeg' }")
+            
+        except Exception as e:
+            logger.error(f"Error in image processing demonstration: {e}")
+            print(f"   ❌ Error: {e}")
     
     def _cleanup(self):
         """Cleanup application resources."""

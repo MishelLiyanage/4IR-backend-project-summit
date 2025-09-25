@@ -193,3 +193,100 @@ class ErrorResponseDTO(BaseDTO):
             details=data.get('details', {}),
             timestamp=data.get('timestamp', datetime.utcnow().isoformat())
         )
+
+
+@dataclass
+class ImageUploadRequestDTO(BaseDTO):
+    """DTO for image upload requests."""
+    encoded_image: str
+    media_type: str = 'image/jpeg'
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ImageUploadRequestDTO':
+        """Create ImageUploadRequestDTO from dictionary."""
+        return cls(
+            encoded_image=data['encoded_image'],
+            media_type=data.get('media_type', 'image/jpeg')
+        )
+
+
+@dataclass
+class LLMMediaDataDTO(BaseDTO):
+    """DTO for LLM media data."""
+    encoded_media: str
+    media_type: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LLMMediaDataDTO':
+        """Create LLMMediaDataDTO from dictionary."""
+        return cls(
+            encoded_media=data['encoded_media'],
+            media_type=data['media_type']
+        )
+
+
+@dataclass
+class LLMRequestDTO(BaseDTO):
+    """DTO for LLM service requests."""
+    ai_agent_id: str
+    user_query: str
+    configuration_environment: str
+    media_data: list
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LLMRequestDTO':
+        """Create LLMRequestDTO from dictionary."""
+        media_data = [LLMMediaDataDTO.from_dict(item) for item in data.get('media_data', [])]
+        return cls(
+            ai_agent_id=data['ai_agent_id'],
+            user_query=data['user_query'],
+            configuration_environment=data['configuration_environment'],
+            media_data=media_data
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'ai_agent_id': self.ai_agent_id,
+            'user_query': self.user_query,
+            'configuration_environment': self.configuration_environment,
+            'media_data': [item.to_dict() for item in self.media_data]
+        }
+
+
+@dataclass
+class TextExtractionResponseDTO(BaseDTO):
+    """DTO for text extraction responses."""
+    extracted_text: str
+    confidence: Optional[float] = None
+    processing_time_ms: Optional[int] = None
+    image_metadata: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TextExtractionResponseDTO':
+        """Create TextExtractionResponseDTO from dictionary."""
+        return cls(
+            extracted_text=data['extracted_text'],
+            confidence=data.get('confidence'),
+            processing_time_ms=data.get('processing_time_ms'),
+            image_metadata=data.get('image_metadata')
+        )
+
+
+@dataclass
+class LLMResponseDTO(BaseDTO):
+    """DTO for LLM service responses."""
+    status: str
+    message: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LLMResponseDTO':
+        """Create LLMResponseDTO from dictionary."""
+        return cls(
+            status=data.get('status', 'unknown'),
+            message=data.get('message'),
+            data=data.get('data'),
+            error=data.get('error')
+        )

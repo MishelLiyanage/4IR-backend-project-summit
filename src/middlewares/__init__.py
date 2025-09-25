@@ -43,7 +43,13 @@ class LoggingMiddleware(BaseMiddleware):
     async def process_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Log incoming request."""
         logger.info(f"Incoming request: {request_data.get('method', 'UNKNOWN')} {request_data.get('path', '/')}")
-        logger.debug(f"Request data: {request_data}")
+        
+        # Use sanitized body for logging if available (for image requests)
+        log_data = request_data.copy()
+        if '_sanitized_body' in request_data:
+            log_data['body'] = request_data['_sanitized_body']
+        
+        logger.debug(f"Request data: {log_data}")
         
         # Add timestamp to request
         request_data['_start_time'] = time.time()
@@ -132,10 +138,42 @@ class ValidationMiddleware(BaseMiddleware):
         if not isinstance(request_data, dict):
             raise ValueError("Invalid request format")
         
+        # Special handling for image processing requests
+        if self._is_image_processing_request(request_data):
+            self._validate_image_request(request_data)
+        
         # Add validation timestamp
         request_data['_validated_at'] = datetime.utcnow().isoformat()
         
         return request_data
+    
+    def _is_image_processing_request(self, request_data: Dict[str, Any]) -> bool:
+        """Check if this is an image processing request."""
+        path = request_data.get('path', '')
+        return '/images/' in path or 'encoded_image' in request_data.get('body', {})
+    
+    def _validate_image_request(self, request_data: Dict[str, Any]) -> None:
+        """Validate image processing specific requests."""
+        body = request_data.get('body', {})
+        
+        # Log image request (without the actual image data for security)
+        logger.info(f"Validating image processing request: {request_data.get('method')} {request_data.get('path')}")
+        
+        if 'encoded_image' in body:
+            encoded_image = body['encoded_image']
+            
+            # Basic size check for base64 data
+            if len(encoded_image) > 10 * 1024 * 1024:  # 10MB limit for base64
+                raise ValueError("Image data too large")
+            
+            # Log image size info
+            image_size_kb = len(encoded_image) / 1024
+            logger.info(f"Image request - Base64 size: {image_size_kb:.1f} KB")
+            
+            # Don't log the actual image data
+            body_copy = body.copy()
+            body_copy['encoded_image'] = f"<base64_data_{len(encoded_image)}_bytes>"
+            request_data['_sanitized_body'] = body_copy
 
 
 class SecurityMiddleware(BaseMiddleware):

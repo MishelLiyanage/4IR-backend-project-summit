@@ -20,18 +20,18 @@ class TestApplication:
         """Test application initialization."""
         app = Application()
         
-        assert app.name == "4IR Backend Project Summit"
-        assert app.version == "1.0.0"
-        assert isinstance(app.debug, bool)
+        assert app.config.app_name == "4IR Backend Project Summit"
+        assert app.config.app_version == "1.0.0"
+        assert isinstance(app.config.debug, bool)
     
     def test_application_init_with_debug_env(self, temp_env_vars):
         """Test application initialization with debug environment variable."""
         app = Application()
         
         # Should be True due to temp_env_vars fixture setting DEBUG=True
-        assert app.debug is True
+        assert app.config.debug is True
     
-    @patch('app.logger')
+    @patch('src.app.logger')
     def test_setup_method(self, mock_logger):
         """Test the _setup method."""
         app = Application()
@@ -39,7 +39,7 @@ class TestApplication:
         
         mock_logger.info.assert_called_with("Setting up application resources...")
     
-    @patch('app.logger')
+    @patch('src.app.logger')
     def test_cleanup_method(self, mock_logger):
         """Test the _cleanup method."""
         app = Application()
@@ -47,10 +47,10 @@ class TestApplication:
         
         mock_logger.info.assert_called_with("Cleaning up application resources...")
     
-    @patch('app.Application._cleanup')
-    @patch('app.Application._main_loop')
-    @patch('app.Application._setup')
-    @patch('app.logger')
+    @patch('src.app.Application._cleanup')
+    @patch('src.app.Application._main_loop')
+    @patch('src.app.Application._setup') 
+    @patch('src.app.logger')
     def test_run_method_success(self, mock_logger, mock_setup, mock_main_loop, mock_cleanup):
         """Test successful run method execution."""
         app = Application()
@@ -61,10 +61,10 @@ class TestApplication:
         mock_cleanup.assert_called_once()
         mock_logger.info.assert_called_with("Starting application...")
     
-    @patch('app.Application._cleanup')
-    @patch('app.Application._main_loop')
-    @patch('app.Application._setup')
-    @patch('app.logger')
+    @patch('src.app.Application._cleanup')
+    @patch('src.app.Application._main_loop')
+    @patch('src.app.Application._setup')
+    @patch('src.app.logger')
     def test_run_method_keyboard_interrupt(self, mock_logger, mock_setup, mock_main_loop, mock_cleanup):
         """Test run method with keyboard interrupt."""
         mock_main_loop.side_effect = KeyboardInterrupt()
@@ -77,16 +77,16 @@ class TestApplication:
         mock_cleanup.assert_called_once()
         mock_logger.info.assert_any_call("Application interrupted by user")
     
-    @patch('app.Application._cleanup')
-    @patch('app.Application._main_loop')
-    @patch('app.Application._setup')
-    @patch('app.logger')
+    @patch('src.app.Application._cleanup')
+    @patch('src.app.Application._main_loop')
+    @patch('src.app.Application._setup')
+    @patch('src.app.logger')
     def test_run_method_exception_debug_mode(self, mock_logger, mock_setup, mock_main_loop, mock_cleanup):
         """Test run method with exception in debug mode."""
         mock_main_loop.side_effect = ValueError("Test error")
         
         app = Application()
-        app.debug = True
+        app.config.debug = True
         
         with pytest.raises(ValueError):
             app.run()

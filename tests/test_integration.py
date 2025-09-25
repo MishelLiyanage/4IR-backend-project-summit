@@ -30,7 +30,7 @@ class TestIntegration:
             
             # Check that expected output is present
             assert "Welcome to 4IR Backend Project Summit!" in result.stdout
-            assert "This is a basic Python project template." in result.stdout
+            assert "This application demonstrates clean architecture patterns." in result.stdout
             
         except subprocess.TimeoutExpired:
             pytest.fail("Main script execution timed out")
@@ -67,6 +67,6 @@ class TestIntegration:
         app = Application()
         
         # Basic attribute checks
-        assert app.name == "4IR Backend Project Summit"
-        assert app.version == "1.0.0"
-        assert isinstance(app.debug, bool)
+        assert app.config.app_name == "4IR Backend Project Summit"
+        assert app.config.app_version == "1.0.0"
+        assert isinstance(app.config.debug, bool)

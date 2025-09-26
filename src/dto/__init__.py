@@ -261,6 +261,8 @@ class TextExtractionResponseDTO(BaseDTO):
     confidence: Optional[float] = None
     processing_time_ms: Optional[int] = None
     image_metadata: Optional[Dict[str, Any]] = None
+    compliance_result: Optional[Dict[str, Any]] = None
+    pdf_report: Optional[Dict[str, Any]] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TextExtractionResponseDTO':
@@ -269,7 +271,9 @@ class TextExtractionResponseDTO(BaseDTO):
             extracted_text=data['extracted_text'],
             confidence=data.get('confidence'),
             processing_time_ms=data.get('processing_time_ms'),
-            image_metadata=data.get('image_metadata')
+            image_metadata=data.get('image_metadata'),
+            compliance_result=data.get('compliance_result'),
+            pdf_report=data.get('pdf_report')
         )
 
 
@@ -288,5 +292,99 @@ class LLMResponseDTO(BaseDTO):
             status=data.get('status', 'unknown'),
             message=data.get('message'),
             data=data.get('data'),
+            error=data.get('error')
+        )
+
+
+@dataclass
+class RAGRequestDTO(BaseDTO):
+    """DTO for RAG service requests."""
+    ai_agent_id: str
+    user_query: str
+    configuration_environment: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'RAGRequestDTO':
+        """Create RAGRequestDTO from dictionary."""
+        return cls(
+            ai_agent_id=data['ai_agent_id'],
+            user_query=data['user_query'],
+            configuration_environment=data['configuration_environment']
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert DTO to dictionary."""
+        return {
+            'ai_agent_id': self.ai_agent_id,
+            'user_query': self.user_query,
+            'configuration_environment': self.configuration_environment
+        }
+
+
+@dataclass
+class RAGResponseDTO(BaseDTO):
+    """DTO for RAG service responses."""
+    status: str
+    answer: Optional[str] = None
+    sources: Optional[list] = None
+    confidence: Optional[float] = None
+    processing_time_ms: Optional[int] = None
+    message: Optional[str] = None
+    error: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'RAGResponseDTO':
+        """Create RAGResponseDTO from dictionary."""
+        return cls(
+            status=data.get('status', 'success'),
+            answer=data.get('answer'),
+            sources=data.get('sources'),
+            confidence=data.get('confidence'),
+            message=data.get('message'),
+            error=data.get('error')
+        )
+
+
+@dataclass
+class ValidationRequestDTO(BaseDTO):
+    """DTO for validation service requests."""
+    ai_agent_id: str
+    user_query: str
+    configuration_environment: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ValidationRequestDTO':
+        """Create ValidationRequestDTO from dictionary."""
+        return cls(
+            ai_agent_id=data['ai_agent_id'],
+            user_query=data['user_query'],
+            configuration_environment=data['configuration_environment']
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert DTO to dictionary."""
+        return {
+            'ai_agent_id': self.ai_agent_id,
+            'user_query': self.user_query,
+            'configuration_environment': self.configuration_environment
+        }
+
+
+@dataclass
+class ValidationResponseDTO(BaseDTO):
+    """DTO for validation service responses."""
+    status: str
+    answer: Optional[Dict[str, Any]] = None
+    processing_time_ms: Optional[int] = None
+    message: Optional[str] = None
+    error: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ValidationResponseDTO':
+        """Create ValidationResponseDTO from dictionary."""
+        return cls(
+            status=data.get('status', 'success'),
+            answer=data.get('answer'),
+            message=data.get('message'),
             error=data.get('error')
         )

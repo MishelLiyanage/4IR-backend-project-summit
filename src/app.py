@@ -15,8 +15,15 @@ from src.middlewares import (
 from src.repositories.user_repository import UserRepository
 from src.services.user_service import UserService
 from src.services.llm_service import LLMService
+from src.services.rag_service import RAGService
+from src.services.query_formatter_service import QueryFormatterService
+from src.services.validation_service import ValidationService
+from src.services.validation_response_formatter_service import ValidationResponseFormatterService
+from src.services.pdf_generation_service import PDFGenerationService
 from src.controllers.user_controller import UserController
 from src.controllers.image_controller import ImageController
+from src.controllers.rag_controller import RAGController
+from src.controllers.validation_controller import ValidationController
 from src.models.user import User
 from src.dto import UserCreateDTO, UserResponseDTO, PaginatedResponseDTO
 
@@ -50,10 +57,28 @@ class ApplicationContainer:
         # Services
         self._services['user'] = UserService(self._repositories['user'])
         self._services['llm'] = LLMService(self.config)
+        self._services['rag'] = RAGService(self.config)
+        self._services['query_formatter'] = QueryFormatterService()
+        self._services['validation'] = ValidationService(self.config)
+        self._services['validation_formatter'] = ValidationResponseFormatterService()
+        self._services['pdf_generation'] = PDFGenerationService()
         
         # Controllers
         self._controllers['user'] = UserController(self._services['user'])
-        self._controllers['image'] = ImageController(self._services['llm'])
+        self._controllers['validation'] = ValidationController(
+            self._services['validation'],
+            self._services['validation_formatter']
+        )
+        self._controllers['rag'] = RAGController(
+            self._services['rag'], 
+            self._services['query_formatter'],
+            self._controllers['validation']
+        )
+        self._controllers['image'] = ImageController(
+            self._services['llm'], 
+            self._controllers['rag'],
+            self._services['pdf_generation']
+        )
         
         # Middleware chain
         self._middleware_chain = MiddlewareChain()

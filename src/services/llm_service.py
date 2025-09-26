@@ -28,13 +28,16 @@ logger = logging.getLogger(__name__)
 class LLMService:
     """Service for LLM communication and text extraction."""
     
-    def __init__(self, config: AppConfig):
-        """Initialize LLM service with configuration."""
+    def __init__(self, config: AppConfig, rag_controller=None):
+        """Initialize LLM service with configuration and optional RAG controller."""
         self.config = config
         self.llm_config = config.get_llm_config()
         self.session = self._create_http_session()
+        self.rag_controller = rag_controller
         
         logger.info(f"LLM Service initialized with endpoint: {self.llm_config['api_url']}")
+        if rag_controller:
+            logger.info("RAG controller integration enabled")
     
     def _create_http_session(self) -> requests.Session:
         """Create HTTP session with retry strategy."""
@@ -59,16 +62,26 @@ class LLMService:
         start_time = time.time()
         
         try:
-            logger.info("Starting text extraction from image")
+            logger.info("🔍 LLM SERVICE: Starting text extraction from image")
+            logger.info("📋 Step 2a/4: Validating image data (size, format, encoding)")
             
             # Validate image data
             self._validate_image_data(image_request)
             
+            logger.info("✅ Step 2a/4: Image validation successful")
+            logger.info("📋 Step 2b/4: Preparing LLM request payload")
+            
             # Prepare LLM request
             llm_request = self._prepare_llm_request(image_request)
             
+            logger.info("✅ Step 2b/4: LLM request prepared")
+            logger.info("📋 Step 2c/4: Calling Generic LLM API for text extraction")
+            
             # Call LLM service
             llm_response = await self._call_llm_service(llm_request)
+            
+            logger.info("✅ Step 2c/4: Generic LLM API response received")
+            logger.info("📋 Step 2d/4: Processing and extracting text from LLM response")
             
             # Process response
             extracted_text = self._extract_text_from_response(llm_response)
@@ -84,7 +97,67 @@ class LLMService:
                 }
             )
             
-            logger.info(f"Text extraction completed in {processing_time}ms")
+            logger.info(f"✅ Step 2d/4: Text extraction completed successfully in {processing_time}ms")
+            logger.info(f"📊 Extracted text length: {len(extracted_text)} characters")
+            
+            # Call RAG agent if controller is available
+            if self.rag_controller:
+                try:
+                    logger.info("📋 Step 3/4: Initiating RAG agent for regulations query")
+                    rag_result = await self.rag_controller.process_extracted_text_for_regulations(extracted_text)
+                    
+                    if rag_result.get('success'):
+                        logger.info("✅ Step 3/4: RAG agent query completed successfully")
+                        
+                        # Store RAG result for potential PDF generation
+                        response.rag_result = rag_result
+                        
+                        if 'validation' in rag_result:
+                            logger.info("✅ Step 4/4: Validation agent completed successfully")
+                            logger.info("🎉 WORKFLOW COMPLETE: All agents processed successfully - Ready for PDF generation")
+                            
+                            # Extract compliance information for frontend
+                            validation_data = rag_result['validation']
+                            validation_result = validation_data.get('validation_result', {})
+                            compliance_data = validation_result.get('compliance', {})
+                            
+                            response.compliance_result = {
+                                "is_compliant": compliance_data.get('is_compliant', False),
+                                "coverage_percent": compliance_data.get('coverage_percent', 0),
+                                "validation_successful": True,
+                                "ready_for_pdf": True
+                            }
+                            
+                        elif 'validation_error' in rag_result:
+                            logger.warning(f"⚠ Step 4/4: Validation agent had issues: {rag_result['validation_error']}")
+                            logger.info("🎯 WORKFLOW PARTIAL: RAG successful, validation had issues")
+                            response.compliance_result = {
+                                "validation_successful": False,
+                                "error": rag_result['validation_error'],
+                                "ready_for_pdf": False
+                            }
+                    else:
+                        logger.warning(f"❌ Step 3/4: RAG agent query failed: {rag_result.get('error')}")
+                        logger.info("⚠ WORKFLOW PARTIAL: Text extraction successful, RAG failed")
+                        response.compliance_result = {
+                            "rag_successful": False,
+                            "error": rag_result.get('error'),
+                            "frontend_message": rag_result.get('frontend_message'),
+                            "ready_for_pdf": False
+                        }
+                        
+                except Exception as rag_error:
+                    logger.error(f"💥 RAG agent integration error: {rag_error}")
+                    logger.info("⚠ WORKFLOW PARTIAL: Text extraction successful, RAG integration failed")
+                    response.compliance_result = {
+                        "rag_successful": False, 
+                        "error": str(rag_error),
+                        "ready_for_pdf": False
+                    }
+                    # Don't fail the main process if RAG fails
+            else:
+                logger.info("ℹ RAG controller not available - completing with text extraction only")
+            
             return response
             
         except Exception as e:
@@ -186,35 +259,46 @@ class LLMService:
         if not llm_response.data:
             raise TextExtractionError("No data in LLM response", llm_response.to_dict())
         
-        # Extract text from various possible response formats
         extracted_text = ""
         
-        # Common response patterns from LLM services
+        # Common response patterns
         if isinstance(llm_response.data, dict):
-            # Try different common field names
             text_fields = ['text', 'content', 'extracted_text', 'result', 'answer', 'response']
             
+            # Direct text fields
             for field in text_fields:
                 if field in llm_response.data:
                     extracted_text = str(llm_response.data[field])
                     break
             
-            # If no text found in common fields, try to extract from nested structures
+            # Nested "results"
             if not extracted_text and 'results' in llm_response.data:
                 results = llm_response.data['results']
-                if isinstance(results, list) and len(results) > 0:
+                if isinstance(results, list) and results:
                     first_result = results[0]
                     if isinstance(first_result, dict):
                         for field in text_fields:
                             if field in first_result:
                                 extracted_text = str(first_result[field])
                                 break
+            
+            # Handle "responses -> agent_response"
+            if not extracted_text and 'responses' in llm_response.data:
+                responses = llm_response.data['responses']
+                if isinstance(responses, dict) and 'agent_response' in responses:
+                    agent_resp = responses['agent_response']
+                    if isinstance(agent_resp, dict):
+                        # Collect values of all fields into a readable string
+                        extracted_parts = []
+                        for key, value in agent_resp.items():
+                            extracted_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+                        extracted_text = "\n".join(extracted_parts)
         
         elif isinstance(llm_response.data, str):
             extracted_text = llm_response.data
         
         if not extracted_text or extracted_text.strip() == "":
-            raise TextExtractionError("No text found in image", llm_response.to_dict())
+            raise TextExtractionError("No text found in LLM response", llm_response.to_dict())
         
         logger.info(f"Successfully extracted text: {len(extracted_text)} characters")
         return extracted_text.strip()

@@ -6,6 +6,7 @@ from typing import Dict, Any
 import logging
 from src.controllers import BaseController
 from src.services.llm_service import LLMService
+from src.services.pdf_generation_service import PDFGenerationService
 from src.dto import ImageUploadRequestDTO, TextExtractionResponseDTO
 from src.exceptions import (
     ImageProcessingError, Base64ValidationError, ImageSizeError,
@@ -19,11 +20,17 @@ logger = logging.getLogger(__name__)
 class ImageController(BaseController):
     """Controller for image processing endpoints."""
     
-    def __init__(self, llm_service: LLMService):
-        """Initialize image controller with LLM service."""
+    def __init__(self, llm_service: LLMService, rag_controller=None, pdf_service=None):
+        """Initialize image controller with LLM service, optional RAG controller, and PDF service."""
         # Pass None as service since we're using LLM service directly
         super().__init__(None)
         self._llm_service = llm_service
+        self._pdf_service = pdf_service or PDFGenerationService()
+        
+        # Set RAG controller in LLM service if provided
+        if rag_controller:
+            self._llm_service.rag_controller = rag_controller
+            logger.info("RAG controller integrated with LLM service")
     
     def get_routes(self) -> Dict[str, Any]:
         """Get image controller routes configuration."""
@@ -35,11 +42,16 @@ class ImageController(BaseController):
     async def extract_text(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle POST request for text extraction from image."""
         try:
-            logger.info("Processing image text extraction request")
+            logger.info("🚀 WORKFLOW START: Processing image text extraction request")
+            logger.info("📋 Step 1/4: Validating image upload request")
             
             # Validate request data
             if 'encoded_image' not in request_data:
+                logger.error("❌ Validation failed: Missing 'encoded_image' field")
                 return self._bad_request_response("Missing 'encoded_image' field")
+            
+            logger.info("✅ Step 1/4: Request validation successful")
+            logger.info("📋 Step 2/4: Creating image request DTO and calling LLM service")
             
             # Create DTO from request
             image_request = ImageUploadRequestDTO.from_dict(request_data)
@@ -47,7 +59,64 @@ class ImageController(BaseController):
             # Extract text using LLM service
             result = await self._llm_service.extract_text_from_image(image_request)
             
-            logger.info("Text extraction completed successfully")
+            logger.info("✅ Step 2/4: LLM text extraction completed successfully")
+            
+            # Check if we should generate PDF
+            if (result.compliance_result and 
+                result.compliance_result.get('ready_for_pdf') and 
+                hasattr(result, 'rag_result')):
+                
+                logger.info("📋 Step 5/5: Generating PDF compliance report")
+                
+                try:
+                    # Extract RAG response data
+                    rag_result = result.rag_result
+                    rag_response = {
+                        'answer': rag_result.get('regulations'),
+                        'sources': rag_result.get('sources', []),
+                        'confidence': rag_result.get('confidence')
+                    }
+                    
+                    # Extract validation result
+                    validation_result = rag_result.get('validation', {})
+                    
+                    # Generate PDF
+                    pdf_result = self._pdf_service.generate_compliance_report(
+                        result.extracted_text,
+                        rag_response,
+                        validation_result
+                    )
+                    
+                    if pdf_result.get('success'):
+                        logger.info("✅ Step 5/5: PDF compliance report generated successfully")
+                        logger.info(f"📊 PDF size: {pdf_result['pdf_size']} bytes")
+                        logger.info("🎉 COMPLETE WORKFLOW SUCCESS: PDF ready for frontend download")
+                        
+                        result.pdf_report = {
+                            "pdf_base64": pdf_result['pdf_base64'],
+                            "filename": pdf_result['filename'],
+                            "size": pdf_result['pdf_size'],
+                            "generated_at": pdf_result['generated_at']
+                        }
+                        
+                        # Update compliance result with PDF info
+                        result.compliance_result.update({
+                            "pdf_generated": True,
+                            "pdf_filename": pdf_result['filename']
+                        })
+                        
+                    else:
+                        logger.error(f"❌ Step 5/5: PDF generation failed: {pdf_result.get('error')}")
+                        result.compliance_result["pdf_error"] = pdf_result.get('error')
+                        
+                except Exception as pdf_error:
+                    logger.error(f"💥 PDF generation error: {pdf_error}")
+                    result.compliance_result["pdf_error"] = str(pdf_error)
+            
+            elif result.compliance_result and not result.compliance_result.get('ready_for_pdf'):
+                logger.info("ℹ PDF generation skipped - workflow not complete or validation failed")
+            
+            logger.info("✅ Image processing workflow completed")
             return self._success_response(result.to_dict())
             
         except Base64ValidationError as e:
